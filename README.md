@@ -20,6 +20,14 @@ Includes an option to install either Firefox, Chrome, Brave, or LibreWolf, and i
 
 ---
 
+## 🎬 Demo Video
+
+Check out this demo video to see how the tool works:
+
+[![Demo Video](https://img.youtube.com/vi/XfphJdARObw/0.jpg)](https://www.youtube.com/watch?v=XfphJdARObw)
+
+---
+
 ## 🚀 Usage Guide
 
 ### Option 1: Use the Executable
