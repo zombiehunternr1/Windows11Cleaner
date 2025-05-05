@@ -26,7 +26,7 @@ Check out this demo video to see how the tool works:
 
 [![Demo Video](https://img.youtube.com/vi/XfphJdARObw/0.jpg)](https://www.youtube.com/watch?v=XfphJdARObw)
 
-*(Please note: The demo video was recorded in a VMware virtual machine environment and not on a physical system. Performance may vary on physical hardware.)*
+*(Please note: The demo was performed in a VMware virtual machine, so performance and behavior may vary when running the tool on a physical system.)*
 
 ---
 
