@@ -33,7 +33,7 @@ Check out this demo video to see how the tool works:
 ## 🚀 Usage Guide
 
 ### Option 1: Use the Executable
-1. [Download the `Windows 11 Debloater.EXE`](https://github.com/zombiehunternr1/Windows11Debloater/releases)
+1. [Download the`Windows 11 Cleaner.EXE`](https://github.com/zombiehunternr1/Windows11Debloater/releases)
 2. Run the file — it **automatically runs with Administrator privileges**
 3. Follow the on-screen steps to choose your options
 
