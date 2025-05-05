@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/github/license/zombiehunternr1/Windows11Debloater)
 
 A simple tool to **debloat Windows 11**, restore the **classic Windows 10 layout**, and **customize Taskbar and window border colors**.  
-Includes an option to install your favorite browser and improve overall system performance and appearance.
+Includes an option to install either Firefox, Chrome, Brave, or LibreWolf, and improve overall system performance and appearance.
 
 ---
 
