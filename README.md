@@ -32,7 +32,7 @@ Includes an option to install either Firefox, Chrome, Brave, or LibreWolf, and i
 2. Or open a PowerShell window as Administrator and run:
    ```powershell
    Set-ExecutionPolicy Bypass -Scope Process -Force
-   .\Debloat-Windows11.ps1
+   .\DeepClean-And-RestoreWindows.ps1
    ```
 
 ---
