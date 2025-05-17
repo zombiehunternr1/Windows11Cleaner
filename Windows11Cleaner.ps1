@@ -2,6 +2,21 @@
 Add-Type -AssemblyName System.Windows.Forms
 # Add drawing assembly to show gradient color effect
 Add-Type -AssemblyName System.Drawing
+# Add the option to use CTRL + A inside the text fields
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    
+    [DllImport("user32.dll")]
+    public static extern bool UpdateWindow(IntPtr hWnd);
+    
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDesktopWindow();
+}
+"@
 # Sets the location of the powershell script to its own root-directory
 $scriptRoot = [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
 Set-Location -Path $scriptRoot
@@ -76,41 +91,6 @@ function Center-ControlHorizontally($control, $y) {
     $controlX = [math]::Floor(($form.ClientSize.Width - $control.Width) / 2)
     $control.Location = New-Object System.Drawing.Point($controlX, $y)
 }
-# This function checks if the system is running a Windows 11 operation system and returns that result 
-function Is-Windows11 {
-    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
-    $version = [version]$osInfo.Version
-    
-    # Windows 11 build numbers start from 22000
-    return ($version.Major -eq 10 -and $version.Build -ge 22000)
-}
-# Checks if Windows is activated by getting querying a license request and return the request result
-function Check-ActivationStatus {
-    try {
-        # Query only the Windows license entry
-        $license = Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus = 1" -ErrorAction Stop
-        return ($null -ne $license)
-    }
-    catch {
-        Write-Warning "Activation check failed: $_"
-        return $false
-    }
-}
-# Checks if the current system is running on Windows 11 and that operating system has been activated
-function Check-Operating-System {
-    # Checks if the current operation system is Windows 11
-    if (-not (Is-Windows11)) {
-        Show-Popup -title "Unsupported Operating System" -message "This program can only run on a Windows 11 device." -isError
-        exit
-    }
-    # Checks if the current operation system has been activated
-    if (-not (Check-ActivationStatus)) {
-        Show-Popup -title "Customize personalisation disabled" -message "This program requires Windows to be activated to customize your personalisation settings."      
-    }
-    else {
-        $isColorCustomizationEnabled.Enabled = $true
-    }
-}
 # Decodes Base64 and load the image
 function Get-ImageFromBase64 {
     param (
@@ -159,6 +139,14 @@ function Update-Color {
     $previewPanel.BackColor = $color
     $hexLabel.Text = "#{0:X2}{1:X2}{2:X2}" -f $r, $g, $b
 }
+# Converts ARGB (AARRGGBB) to ABGR (AABBGGRR) for AccentColor
+function ConvertTo-ABGR($color) {
+    $A = ($color -shr 24) -band 0xFF
+    $R = ($color -shr 16) -band 0xFF
+    $G = ($color -shr 8) -band 0xFF
+    $B = $color -band 0xFF
+    return (($A -shl 24) -bor ($B -shl 16) -bor ($G -shl 8) -bor $R)
+}
 # Draws the gradiant color onto the window
 function Draw-Gradient {
     param(
@@ -182,6 +170,146 @@ function Update-Gradient {
         (255 - $greenTrackBar.Value),
         (255 - $blueTrackBar.Value))
     Draw-Gradient -Panel $gradientPanel -StartColor $startColor -EndColor $endColor
+}
+# Updates the visuals based on the kind of method you want to set the wallpaper
+function Update-WallPaperUI-SettingsDisplay {
+    $textBoxWallpaperURL.Visible = $radioWallpaperURL.Checked
+    $browseWallpaperButton.Visible = $radioWallpaperFile.Checked
+    $textBoxWallpaperFile.Visible = $radioWallpaperFile.Checked   
+}
+# Updates the size of the form and adjusts the elements within the form based on if the customization is enabled
+function Update-FormCustomizationDisplay {
+if ($isCustomizationEnabled.Checked) {
+        $colorCustomizationParent.Visible = $true
+
+        Set-BrowserLabelCenter -y 550
+
+        # Adjust form size first
+        $form.Size = New-Object System.Drawing.Size(650, 725)
+
+        # Get the number of images
+        $numImages = $pictureBoxes.Count
+
+        # Calculate total width of all images
+        $totalImagesWidth = 0
+        foreach ($pictureBox in $pictureBoxes.Values) {
+            $totalImagesWidth += $pictureBox.Width
+        }
+
+        # Calculate available space and spacing between
+        $availableSpace = $form.ClientSize.Width - $totalImagesWidth
+        $spaceBetweenImages = [math]::Floor($availableSpace / ($numImages + 1))
+
+        # Position the images evenly across the form
+        $xOffset = $spaceBetweenImages
+        foreach ($pictureBox in $pictureBoxes.Values) {
+            $pictureBox.Location = New-Object System.Drawing.Point($xOffset, 575)
+            $xOffset += $pictureBox.Width + $spaceBetweenImages
+        }
+
+        # Center confirm button
+        $confirmButtonX = [math]::Floor(($form.ClientSize.Width - $confirmButton.Width) / 2)
+        $confirmButton.Location = New-Object System.Drawing.Point($confirmButtonX, 650)
+    } else {
+        $colorCustomizationParent.Visible = $false
+
+        # Resize form before other layout logic
+        $form.Size = New-Object System.Drawing.Size(380, 250)
+
+        Set-BrowserLabelCenter -y 50
+        Center-Form
+
+        # Reposition browser images in a compact layout
+        $numImages = $pictureBoxes.Count
+        $totalImagesWidth = 0
+        foreach ($pictureBox in $pictureBoxes.Values) {
+            $totalImagesWidth += $pictureBox.Width
+        }
+
+        $availableSpace = $form.ClientSize.Width - $totalImagesWidth
+        $spaceBetweenImages = [math]::Floor($availableSpace / ($numImages + 1))
+        $xOffset = $spaceBetweenImages
+        foreach ($pictureBox in $pictureBoxes.Values) {
+            $pictureBox.Location = New-Object System.Drawing.Point($xOffset, 80)
+            $xOffset += $pictureBox.Width + $spaceBetweenImages
+        }
+
+        # Reposition confirm button
+        $confirmButtonX = [math]::Floor(($form.ClientSize.Width - $confirmButton.Width) / 2)
+        $confirmButton.Location = New-Object System.Drawing.Point($confirmButtonX, 165)
+    }
+}
+# Validates if the wallpaper can be used as the background for the system
+function Validate-Wallpaper {
+     try {
+        if ($radioWallpaperURL.Checked) {
+            $url = $textBoxWallpaperURL.Text.Trim()
+            if (-not $url) {
+                $statusWallpaperLabel.Text = "Please enter URL"
+                return
+            }
+            
+            if (-not [System.Uri]::IsWellFormedUriString($url, [System.UriKind]::Absolute)) {
+                $statusWallpaperLabel.Text = "Invalid URL format"
+                return
+            }
+
+            # Check file extension from URL
+            $urlExtension = [System.IO.Path]::GetExtension($url).ToLower()
+            $validExtensions = @('.jpg','.jpeg','.png','.bmp')
+            if (-not ($validExtensions -contains $urlExtension)) {
+                $statusWallpaperLabel.Text = "URL must point to JPG/PNG/BMP image"
+                return
+            }
+
+            $wallpaperDir = "$env:SystemRoot\Web\Wallpaper\Custom Wallpapers"
+            if (-not (Test-Path $wallpaperDir)) { 
+                New-Item -ItemType Directory -Path $wallpaperDir -Force | Out-Null 
+            }
+
+            $fileName = [System.IO.Path]::GetFileName($url)
+            $filePath = Join-Path -Path $wallpaperDir -ChildPath $fileName
+
+            try {
+                Invoke-WebRequest -Uri $url -OutFile $filePath -ErrorAction Stop
+                # Verifies the downloaded file's extension
+                if (-not ($validExtensions -contains [System.IO.Path]::GetExtension($filePath).ToLower())) {
+                    Remove-Item $filePath -Force
+                    $statusWallpaperLabel.Text = "Downloaded file has invalid format"
+                    return
+                }                              
+                #Stores the downloaded images filepath into the global variable
+                $global:WallpaperPath = $filePath
+                $statusWallpaperLabel.Text = "Wallpaper set successfully!"
+            } catch {
+                $statusWallpaperLabel.Text = "Download failed: Invalid URL"
+                return
+            }
+        } else {
+            $filePath = $textBoxWallpaperFile.Text.Trim()
+            if (-not (Test-Path $filePath)) {
+                $statusWallpaperLabel.Text = "File not found"
+                return
+            }
+            # Convert to absolute path and validate extension
+            $absolutePath = if ([System.IO.Path]::IsPathRooted($filePath)) {
+                $filePath
+            } else {
+                Join-Path -Path $pwd -ChildPath $filePath                
+            }
+            # verifies the selected file path extension
+            $validExtensions = @('.jpg','.jpeg','.png','.bmp')
+            if (-not ($validExtensions -contains [System.IO.Path]::GetExtension($absolutePath).ToLower())) {
+                $statusWallpaperLabel.Text = "Invalid image format (use JPG/PNG/BMP)"
+                return
+            }
+            # Stores the downloaded filpath into the global variable
+            $global:WallpaperPath = $filePath
+            $statusWallpaperLabel.Text = "Wallpaper set sucessfully!"
+        }
+    } catch {
+        $statusWallpaperLabel.Text = "Please browse to an image file location"
+    }
 }
 # Shows a black overlay to hide the processes
 function Show-Overlay($base64Image) {
@@ -293,6 +421,106 @@ function Show-Overlay($base64Image) {
         Handle = $handle
         SyncHash = $syncHash
     }
+}
+# This function checks if the system is running a Windows 11 operation system and returns that result 
+function Is-Windows11 {
+    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
+    $version = [version]$osInfo.Version
+    
+    # Windows 11 build numbers start from 22000
+    return ($version.Major -eq 10 -and $version.Build -ge 22000)
+}
+# Checks if Windows is activated by getting querying a license request and return the request result
+function Check-ActivationStatus {
+    try {
+        # Query only the Windows license entry
+        $license = Get-CimInstance -Query "SELECT LicenseStatus FROM SoftwareLicensingProduct WHERE ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus = 1" -ErrorAction Stop
+        return ($null -ne $license)
+    }
+    catch {
+        Write-Warning "Activation check failed: $_"
+        return $false
+    }
+}
+# Checks if the current system is running on Windows 11 and that operating system has been activated
+function Check-Operating-System {
+    # Checks if the current operation system is Windows 11
+    if (-not (Is-Windows11)) {
+        Show-Popup -title "Unsupported Operating System" -message "This program can only run on a Windows 11 device." -isError
+        exit
+    }
+    # Checks if the current operation system has been activated
+    if (-not (Check-ActivationStatus)) {
+        Show-Popup -title "Customize personalisation disabled" -message "This program requires Windows to be activated to customize your personalisation settings."      
+    }
+    else {
+        $isCustomizationEnabled.Enabled = $true
+    }
+}
+# This function removes the overlay once the entire process is finished running
+function Remove-ProgressOverlay {
+    # Ensure the overlay is removed after Set-WindowsClassicLayoutAndDarkMode is finished
+        if ($overlayForm -ne $null) {
+            
+            try {        
+                # Sorts the desktop items by name
+                Remove-Item -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Recurse -ErrorAction SilentlyContinue
+                
+                # Gets the Explorer process and closes the window
+                $explorer = Get-Process -Name "Explorer"
+                Stop-Process $explorer
+                Start-Sleep -Seconds 2
+                # Restarts the Explorer to ensure the desktop items are properly sorted
+                Start-Process Explorer.exe 
+                
+                # Checks if the color customization wasn't checked and if it isn't, starts the File Explorer process
+                if ($isCustomizationEnabled.Checked -eq $false) {
+                    Start-Sleep -Seconds 2
+                    Write-Host "Starting the file explorer"
+                    Start-Process Explorer.exe
+                }
+                
+                # Gets the Explorer process and closes the window
+                $explorer = Get-Process -Name "Explorer"
+                Stop-Process $explorer
+
+                # Update existing overlay with new image
+                $overlayForm.SyncHash.CurrentImage = $overlayCompleteImageBase64
+                # Removes text display on label
+                $overlayForm.SyncHash.CurrentStatus = ""
+                # Removes label from form controls
+                $overlayForm.SyncHash.Form.Controls.Remove($overlayForm.SyncHash.StatusLabel)
+                # Disposes the label
+                $overlayForm.SyncHash.StatusLabel.Dispose()
+                # Sets the label reference to be empty
+                $overlayForm.SyncHash.StatusLabel = $null
+
+                # Keep overlay visible for 6 and a half seconds because of latency
+                Start-Sleep -Seconds 6.5
+
+                # Cleanup with proper sequence
+                $overlayForm.SyncHash.ShouldClose = $true
+        
+                # Wait for graceful closure
+                while (-not $overlayForm.Handle.IsCompleted) {
+                    Start-Sleep -Milliseconds 100
+                }
+        
+                # Proper cleanup sequence
+                $overlayForm.PowerShell.EndInvoke($overlayForm.Handle) | Out-Null
+                $overlayForm.PowerShell.Dispose()
+                $overlayForm.Runspace.Dispose()
+                $overlayForm = $null
+        } catch {
+            Write-Warning "Error during overlay management: $_"
+        } finally {
+            if ($overlayForm -ne $null) {
+                try { $overlayForm.Runspace.Dispose() } catch {}
+                try { $overlayForm.PowerShell.Dispose() } catch {}
+            }
+        }
+            Write-Host "Process complete - overlay removed" -ForegroundColor Green
+        }
 }
 # Removes Outlook and OneDrive from your system
 function Remove-OutlookAndOneDrive {
@@ -995,24 +1223,22 @@ function Set-WindowsClassicLayoutAndDarkMode {
     Stop-Process -Name explorer -Force
     Start-Process explorer
     Start-Sleep -Seconds 2
-    if ($isColorCustomizationEnabled.Checked) {
-        $global:overlayForm.SyncHash.CurrentStatus = "Applying selected color settings..."
+    if ($isCustomizationEnabled.Checked) {
+        $global:overlayForm.SyncHash.CurrentStatus = "Applying selected customization settings..."
         Start-Sleep -Seconds 2
+        #Checks if the wallpaperpath has been set, meaning that a background needs to be applied.
+        if ($global:WallpaperPath -ne $null) {
+            Apply-Wallpaper
+            Start-Sleep -Seconds 2
+        }
         Write-Host "Setting preferred color settings..." -ForegroundColor Cyan
+        $global:overlayForm.SyncHash.CurrentStatus = "Applying preferred color..."
         Set-PreferredColorSettings
     }
     } catch {
         Write-Host "Error applying registry changes: $_" -ForegroundColor Red
     }
     $global:overlayForm.SyncHash.CurrentStatus = "Classic Windows layout and dark mode applied."
-}
-# Converts ARGB (AARRGGBB) to ABGR (AABBGGRR) for AccentColor
-function ConvertTo-ABGR($color) {
-    $A = ($color -shr 24) -band 0xFF
-    $R = ($color -shr 16) -band 0xFF
-    $G = ($color -shr 8) -band 0xFF
-    $B = $color -band 0xFF
-    return (($A -shl 24) -bor ($B -shl 16) -bor ($G -shl 8) -bor $R)
 }
 # Helper function to update registry properties
 function Update-RegistryProperty {
@@ -1093,6 +1319,75 @@ function Set-PreferredColorSettings {
     # Force the Settings app to reload (if open)
     Stop-Process -Name "SystemSettings" -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
+}
+# Applies the wallpaper either via the given URL or browsed file location and automatically updates the desktop wallpaper display
+function Apply-Wallpaper {
+    $path = $global:WallpaperPath
+    $global:overlayForm.SyncHash.CurrentStatus = "Applying wallpaper..."
+    # Main attempt to set the new desktop wallpaper
+    try {
+        # Set registry values
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $path -Force
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10" -Force
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0" -Force
+        
+        # Multiple refresh techniques to update the desktop wallpaper display to show the newly set wallpaper
+        1..3 | ForEach-Object {
+            [Wallpaper]::SystemParametersInfo(0x0014, 0, $path, 0x01) | Out-Null
+            rundll32.exe user32.dll,UpdatePerUserSystemParameters 1, $true
+            Start-Sleep -Milliseconds 300
+        }
+
+        # Verify if the current wallpaper is equal to the new set wallpaper to confirm if the values have been set and saved
+        $currentWallpaper = (Get-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper").Wallpaper
+        if ($currentWallpaper -eq $path) {
+            $global:overlayForm.SyncHash.CurrentStatus = "Wallpaper successfully applied."
+            return $true
+        }
+    }
+    catch { 
+        $global:overlayForm.SyncHash.CurrentStatus = "Failed to apply wallpaper. Using backup method."
+        return $false
+    }
+
+    # Fallback to restart the file Explorer if the main attempt failed to refresh the desktop   
+    try {
+        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        Start-Process "explorer.exe"
+        Start-Sleep -Seconds 1
+        [System.Windows.Forms.SendKeys]::SendWait("%{F4}")
+        $global:overlayForm.SyncHash.CurrentStatus = "Wallpaper successfully applied."
+        return $true
+    }
+    catch {
+        $global:overlayForm.SyncHash.CurrentStatus = "Failed to apply wallpaper. Wallpaper needs to be manually applied."
+        return $false
+    }
+}
+# Cleans up the temp-folder and removing the remaining chocolately files and folders
+function Invoke-SystemCleanup {
+    try {
+        if (Test-Path "C:\ProgramData\chocolatey"){
+            # Uninstall Chocolatey after the installation is complete
+            Write-Host "Uninstalling Chocolatey..." -ForegroundColor Cyan
+            choco uninstall chocolatey -y
+            # Removes the remaining folders from the directory
+            Remove-Item -Path "C:\ProgramData\chocolatey" -Recurse -Force -ErrorAction SilentlyContinue -Verbose
+            Remove-item -Path "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue -Verbose       
+
+            Write-Host "Chocolatey has been uninstalled." -ForegroundColor Green
+                
+            Start-Sleep -Seconds 2
+        }
+
+        # Cleans up all the remaining temporarily files in the temp folder that are no longer needed
+        Write-Host "Cleaning up Temp folder..." -ForegroundColor Cyan
+        Get-ChildItem -Path $env:TEMP | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -Verbose
+        Write-Host "Temp folder cleaned successfully!" -ForegroundColor Green
+    } Catch {
+        Write-Host "An error occurred while cleaning up the Temp folder: $_" -ForegroundColor Red
+    }
 }
 # Runs all the scripts in order once the preferred browser has been selected
 function DeepClean-And-RestoreWindows {
@@ -1295,21 +1590,78 @@ $form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
 $form.MaximizeBox = $false
 
+# UI Elements for the wallpaper setter
+$radioWallpaperURL = New-Object System.Windows.Forms.RadioButton
+$radioWallpaperURL.Text = "From URL"
+$radioWallpaperURL.Location = New-Object System.Drawing.Point(20, 20)
+$radioWallpaperURL.Checked = $true
+
+$radioWallpaperFile = New-Object System.Windows.Forms.RadioButton
+$radioWallpaperFile.Text = "From File"
+$radioWallpaperFile.Location = New-Object System.Drawing.Point(140, 20)
+
+$textBoxWallpaperURL = New-Object System.Windows.Forms.TextBox
+$textBoxWallpaperURL.Location = New-Object System.Drawing.Point(20, 50)
+$textBoxWallpaperURL.Size = New-Object System.Drawing.Size(350, 20)
+
+$browseWallpaperButton = New-Object System.Windows.Forms.Button
+$browseWallpaperButton.Text = "Browse"
+$browseWallpaperButton.Location = New-Object System.Drawing.Point(20, 50)
+$browseWallpaperButton.Size = New-Object System.Drawing.Size(80, 23)
+$browseWallpaperButton.Visible = $false
+
+$textBoxWallpaperFile = New-Object System.Windows.Forms.TextBox
+$textBoxWallpaperFile.Location = New-Object System.Drawing.Point(110, 50)
+$textBoxWallpaperFile.Size = New-Object System.Drawing.Size(260, 20)
+$textBoxWallpaperFile.Visible = $false
+
+$setWallpaperButton = New-Object System.Windows.Forms.Button
+$setWallpaperButton.Text = "Set Wallpaper"
+$setWallpaperButton.Location = New-Object System.Drawing.Point(20, 80)
+$setWallpaperButton.Size = New-Object System.Drawing.Size(150, 40)
+
+$statusWallpaperLabel = New-Object System.Windows.Forms.Label
+$statusWallpaperLabel.Location = New-Object System.Drawing.Point(180, 95)
+$statusWallpaperLabel.Size = New-Object System.Drawing.Size(220, 20)
+$statusWallpaperLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+
 # Toggle Checkbox for Color Customization
-$isColorCustomizationEnabled = New-Object System.Windows.Forms.CheckBox
-$isColorCustomizationEnabled.Text = "Customize Personalisation settings"
-$isColorCustomizationEnabled.Location = New-Object System.Drawing.Point(20, 10)
-$isColorCustomizationEnabled.AutoSize = $true
-$isColorCustomizationEnabled.Checked = $false
-$isColorCustomizationEnabled.Enabled = $false
-$form.Controls.Add($isColorCustomizationEnabled)
+$isCustomizationEnabled = New-Object System.Windows.Forms.CheckBox
+$isCustomizationEnabled.Text = "Customize Personalisation settings"
+$isCustomizationEnabled.Location = New-Object System.Drawing.Point(20, 10)
+$isCustomizationEnabled.AutoSize = $true
+$isCustomizationEnabled.Checked = $false
+$isCustomizationEnabled.Enabled = $false
+$form.Controls.Add($isCustomizationEnabled)
 
 # Panel to contain all color customization controls
 $colorCustomizationParent = New-Object System.Windows.Forms.Panel
-$colorCustomizationParent.Location = New-Object System.Drawing.Point(20, 40)
-$colorCustomizationParent.Size = New-Object System.Drawing.Size(610, 400)
+$colorCustomizationParent.Location = New-Object System.Drawing.Point(20, 50)
+$colorCustomizationParent.Size = New-Object System.Drawing.Size(610, 500)
 $colorCustomizationParent.Visible = $false
 $form.Controls.Add($colorCustomizationParent)
+
+# Wallpaper Group box
+$wallpaperGroup = New-Object System.Windows.Forms.GroupBox
+$wallpaperGroup.Text = "Wallpaper Settings"
+$wallpaperGroup.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$wallpaperGroup.ForeColor = [System.Drawing.Color]::White
+$wallpaperGroup.Location = New-Object System.Drawing.Point(0, 0)
+$wallpaperGroup.Size = New-Object System.Drawing.Size(410, 130)
+$colorCustomizationParent.Controls.Add($wallpaperGroup)
+
+$wallpaperGroup.Controls.AddRange(@(
+    $radioWallpaperURL, $radioWallpaperFile, $textBoxWallpaperURL, $textBoxWallpaperFile, $browseWallpaperButton, $setWallpaperButton, $statusWallpaperLabel
+))
+
+# RGB Controls Group Box
+$colorCustomizationGroup = New-Object System.Windows.Forms.GroupBox
+$colorCustomizationGroup.Location = New-Object System.Drawing.Point(0, 130)
+$colorCustomizationGroup.Size = New-Object System.Drawing.Size(580, 360)
+$colorCustomizationGroup.Text = "Select a color for your Start menu, taskbar and password lockscreen border"
+$colorCustomizationGroup.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$colorCustomizationGroup.ForeColor = [System.Drawing.Color]::White 
+$colorCustomizationParent.Controls.Add($colorCustomizationGroup)
 
 # Toggle checkbox for applying color to window screens
 $isColorSetForWindowScreen = New-Object System.Windows.Forms.CheckBox
@@ -1317,7 +1669,7 @@ $isColorSetForWindowScreen.Text = "Apply to window screens"
 $isColorSetForWindowScreen.Location = New-Object System.Drawing.Point(20, 30)
 $isColorSetForWindowScreen.AutoSize = $true
 $isColorSetForWindowScreen.Checked = $false
-$colorCustomizationParent.Controls.Add($IsColorSetForWindowScreen)
+$colorCustomizationGroup.Controls.Add($IsColorSetForWindowScreen)
 
 # Toggle checkbox for applying color to Start menu, taskbar and lockscreen
 $isColorSetForStartMenuTaskbarLockScreen = New-Object System.Windows.Forms.CheckBox
@@ -1325,33 +1677,20 @@ $isColorSetForStartMenuTaskbarLockScreen.Text = "Apply to Start menu, taskbar an
 $isColorSetForStartMenuTaskbarLockScreen.Location = New-Object System.Drawing.Point(20, 50)
 $isColorSetForStartMenuTaskbarLockScreen.AutoSize = $true
 $isColorSetForStartMenuTaskbarLockScreen.Checked = $true
-$colorCustomizationParent.controls.add($isColorSetForStartMenuTaskbarLockScreen)
-
-# RGB Controls Group Box with proper margins
-$colorCustomizationGroup = New-Object System.Windows.Forms.GroupBox
-$colorCustomizationGroup.Location = New-Object System.Drawing.Point(20, 40)
-$colorCustomizationGroup.Size = New-Object System.Drawing.Size(580, 400)
-$colorCustomizationGroup.Text = "Select a color for your Start menu, taskbar and password lockscreen border"
-$colorCustomizationGroup.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$colorCustomizationGroup.ForeColor = [System.Drawing.Color]::White 
-$colorCustomizationParent.Controls.Add($colorCustomizationGroup)
-
-# Move all color customization controls into this panel
-$colorCustomizationGroup.Parent = $colorCustomizationParent
-$colorCustomizationGroup.Location = New-Object System.Drawing.Point(0, 0)
+$colorCustomizationGroup.Controls.add($isColorSetForStartMenuTaskbarLockScreen)
 
 # Color Preview Panel
 $previewPanel = New-Object System.Windows.Forms.Panel
 $previewPanel.Location = New-Object System.Drawing.Point(420, 280)
-$previewPanel.Size = New-Object System.Drawing.Size(100, 100)
+$previewPanel.Size = New-Object System.Drawing.Size(75, 75)
 $previewPanel.BackColor = [System.Drawing.Color]::Black
 $previewPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $colorCustomizationGroup.Controls.Add($previewPanel)
 
 # Hex Color Display
 $hexLabel = New-Object System.Windows.Forms.Label
-$hexLabel.Location = New-Object System.Drawing.Point(410, 265)
-$hexLabel.Size = New-Object System.Drawing.Size(120, 25)
+$hexLabel.Location = New-Object System.Drawing.Point(425, 265)
+$hexLabel.Size = New-Object System.Drawing.Size(60, 25)
 $hexLabel.TextAlign = [System.Windows.Forms.HorizontalAlignment]::Center
 $hexLabel.Font = New-Object System.Drawing.Font("Consolas", 10)
 $hexLabel.ForeColor = [System.Drawing.Color]::White
@@ -1486,10 +1825,10 @@ $blueNumeric.Location = New-Object System.Drawing.Point(2, 2)
 foreach ($prop in $numericStyle.GetEnumerator()) { $blueNumeric.$($prop.Key) = $prop.Value }
 $blueNumericBorder.Controls.Add($blueNumeric)
 
-# Gradient Background Panel (inside group box)
+# Gradient Background Panel
 $gradientPanel = New-Object System.Windows.Forms.Panel
 $gradientPanel.Location = New-Object System.Drawing.Point(10, 280)
-$gradientPanel.Size = New-Object System.Drawing.Size(400, 100)
+$gradientPanel.Size = New-Object System.Drawing.Size(400, 75)
 $gradientPanel.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
 $gradientPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $colorCustomizationGroup.Controls.Add($gradientPanel)
@@ -1630,67 +1969,43 @@ $redNumeric.Add_ValueChanged($numericHandler)
 $greenNumeric.Add_ValueChanged($numericHandler)
 $blueNumeric.Add_ValueChanged($numericHandler)
 
-# Event Handler for Toggle Checkbox
-$isColorCustomizationEnabled.Add_CheckedChanged({
-    if ($isColorCustomizationEnabled.Checked) {
-        $colorCustomizationParent.Visible = $true
-
-        Set-BrowserLabelCenter -y 450
-
-        # Adjust form size first
-        $form.Size = New-Object System.Drawing.Size(650, 650)
-
-        # Get the number of images
-        $numImages = $pictureBoxes.Count
-
-        # Calculate total width of all images
-        $totalImagesWidth = 0
-        foreach ($pictureBox in $pictureBoxes.Values) {
-            $totalImagesWidth += $pictureBox.Width
-        }
-
-        # Calculate available space and spacing between
-        $availableSpace = $form.ClientSize.Width - $totalImagesWidth
-        $spaceBetweenImages = [math]::Floor($availableSpace / ($numImages + 1))
-
-        # Position the images evenly across the form
-        $xOffset = $spaceBetweenImages
-        foreach ($pictureBox in $pictureBoxes.Values) {
-            $pictureBox.Location = New-Object System.Drawing.Point($xOffset, 480)
-            $xOffset += $pictureBox.Width + $spaceBetweenImages
-        }
-
-        # Center confirm button
-        $confirmButtonX = [math]::Floor(($form.ClientSize.Width - $confirmButton.Width) / 2)
-        $confirmButton.Location = New-Object System.Drawing.Point($confirmButtonX, 565)
-    } else {
-        $colorCustomizationParent.Visible = $false
-
-        # Resize form before other layout logic
-        $form.Size = New-Object System.Drawing.Size(380, 250)
-
-        Set-BrowserLabelCenter -y 50
-        Center-Form
-
-        # Reposition browser images in a compact layout
-        $numImages = $pictureBoxes.Count
-        $totalImagesWidth = 0
-        foreach ($pictureBox in $pictureBoxes.Values) {
-            $totalImagesWidth += $pictureBox.Width
-        }
-
-        $availableSpace = $form.ClientSize.Width - $totalImagesWidth
-        $spaceBetweenImages = [math]::Floor($availableSpace / ($numImages + 1))
-        $xOffset = $spaceBetweenImages
-        foreach ($pictureBox in $pictureBoxes.Values) {
-            $pictureBox.Location = New-Object System.Drawing.Point($xOffset, 80)
-            $xOffset += $pictureBox.Width + $spaceBetweenImages
-        }
-
-        # Reposition confirm button
-        $confirmButtonX = [math]::Floor(($form.ClientSize.Width - $confirmButton.Width) / 2)
-        $confirmButton.Location = New-Object System.Drawing.Point($confirmButtonX, 165)
+# Button that handles the File Explorer pop-up display and sets the filter to only show image file formats
+$browseWallpaperButton.Add_Click({
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp"
+    if ($dialog.ShowDialog() -eq "OK") {
+        $textBoxWallpaperFile.Text = $dialog.FileName
     }
+})
+
+$radioWallpaperURL.Add_Click( { Update-WallPaperUI-SettingsDisplay })
+$radioWallpaperFile.Add_Click({ Update-WallPaperUI-SettingsDisplay })
+
+# Button that, once pressed, verifies if either the given URL or image path is valid before trying to apply it
+$setWallpaperButton.Add_Click({
+    $statusWallpaperLabel.Text = "Processing..."
+    $form.Refresh()
+    Validate-Wallpaper 
+})
+
+# Allows to select everything by holding Control + A till release
+$textBoxWallpaperURL.Add_KeyDown({
+    if ($_.Control -and $_.KeyCode -eq "A") {
+        $textBoxWallpaperURL.SelectAll()
+        $_.Handled = $true
+    }
+})
+$textBoxWallpaperFile.Add_KeyDown({
+    if ($_.Control -and $_.KeyCode -eq "A") {
+        $textBoxWallpaperFile.SelectAll()
+        $_.Handled = $true
+    }
+})
+
+# Event Handler for Toggle Checkbox
+$isCustomizationEnabled.Add_CheckedChanged({
+    #Updates the Form GUI
+    Update-FormCustomizationDisplay
 
     # Re-center the browserLabel after adjusting form size
     Set-BrowserLabelCenter -y $browserLabel.Location.Y
@@ -1745,89 +2060,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK -and $global:selectedBro
 
         DeepClean-And-RestoreWindows -browser $browser
     } finally {
-        try {
-            if (Test-Path "C:\ProgramData\chocolatey"){
-                # Uninstall Chocolatey after the installation is complete
-                Write-Host "Uninstalling Chocolatey..." -ForegroundColor Cyan
-                choco uninstall chocolatey -y
-                # Removes the remaining folders from the directory
-                Remove-Item -Path "C:\ProgramData\chocolatey" -Recurse -Force -ErrorAction SilentlyContinue -Verbose
-                Remove-item -Path "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue -Verbose       
-
-                Write-Host "Chocolatey has been uninstalled." -ForegroundColor Green
-                
-                Start-Sleep -Seconds 2
-            }
-
-            # Cleans up all the remaining temporarily files in the temp folder that are no longer needed
-            Write-Host "Cleaning up Temp folder..." -ForegroundColor Cyan
-            Get-ChildItem -Path $env:TEMP | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -Verbose
-            Write-Host "Temp folder cleaned successfully!" -ForegroundColor Green
-
-        } Catch {
-            Write-Host "An error occurred while cleaning up the Temp folder: $_" -ForegroundColor Red
-        }
-        # Ensure the overlay is removed after Set-WindowsClassicLayoutAndDarkMode is finished
-        if ($overlayForm -ne $null) {
-            
-            try {        
-                # Sorts the desktop items by name
-                Remove-Item -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Recurse -ErrorAction SilentlyContinue
-                
-                # Gets the Explorer process and closes the window
-                $explorer = Get-Process -Name "Explorer"
-                Stop-Process $explorer
-                Start-Sleep -Seconds 2
-                # Restarts the Explorer to ensure the desktop items are properly sorted
-                Start-Process Explorer.exe 
-                
-                # Checks if the color customization wasn't checked and if it isn't, starts the File Explorer process
-                if ($isColorCustomizationEnabled.Checked -eq $false) {
-                    Start-Sleep -Seconds 2
-                    Write-Host "Starting the file explorer"
-                    Start-Process Explorer.exe
-                }
-                
-                # Gets the Explorer process and closes the window
-                $explorer = Get-Process -Name "Explorer"
-                Stop-Process $explorer
-
-                # Update existing overlay with new image
-                $overlayForm.SyncHash.CurrentImage = $overlayCompleteImageBase64
-                # Removes text display on label
-                $overlayForm.SyncHash.CurrentStatus = ""
-                # Removes label from form controls
-                $overlayForm.SyncHash.Form.Controls.Remove($overlayForm.SyncHash.StatusLabel)
-                # Disposes the label
-                $overlayForm.SyncHash.StatusLabel.Dispose()
-                # Sets the label reference to be empty
-                $overlayForm.SyncHash.StatusLabel = $null
-
-                # Keep overlay visible for 6 and a half seconds because of latency
-                Start-Sleep -Seconds 6.5
-
-                # Cleanup with proper sequence
-                $overlayForm.SyncHash.ShouldClose = $true
-        
-                # Wait for graceful closure
-                while (-not $overlayForm.Handle.IsCompleted) {
-                    Start-Sleep -Milliseconds 100
-                }
-        
-                # Proper cleanup sequence
-                $overlayForm.PowerShell.EndInvoke($overlayForm.Handle) | Out-Null
-                $overlayForm.PowerShell.Dispose()
-                $overlayForm.Runspace.Dispose()
-                $overlayForm = $null
-        } catch {
-            Write-Warning "Error during overlay management: $_"
-        } finally {
-            if ($overlayForm -ne $null) {
-                try { $overlayForm.Runspace.Dispose() } catch {}
-                try { $overlayForm.PowerShell.Dispose() } catch {}
-            }
-        }
-            Write-Host "Process complete - overlay removed" -ForegroundColor Green
-        }
+        Invoke-SystemCleanup
+        Remove-ProgressOverlay
     }
 }
