@@ -25,7 +25,7 @@ You can also **set your own desktop wallpaper** and choose to install either **F
 
 Check out this demo video to see how the tool works:
 
-[![Demo Video](https://img.youtube.com/vi/j-vaBFMWjBE/0.jpg)](https://www.youtube.com/watch?v=j-vaBFMWjBE)
+[![Demo Video](https://img.youtube.com/vi/TlidfMvirKY/0.jpg)](https://www.youtube.com/watch?v=TlidfMvirKY)
 
 *(Please note: The demo was performed in a VMware virtual machine, so performance and behavior may vary when running the tool on a physical system.)*
 
