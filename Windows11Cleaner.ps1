@@ -271,7 +271,7 @@ function Validate-Wallpaper {
             $filePath = Join-Path -Path $wallpaperDir -ChildPath $fileName
 
             try {
-                Invoke-WebRequest -Uri $url -OutFile $filePath -ErrorAction Stop
+                (New-Object System.Net.WebClient).DownloadFile($url, $filePath)
                 # Verifies the downloaded file's extension
                 if (-not ($validExtensions -contains [System.IO.Path]::GetExtension($filePath).ToLower())) {
                     Remove-Item $filePath -Force
