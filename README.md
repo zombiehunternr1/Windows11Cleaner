@@ -58,6 +58,8 @@ Check out this demo video to see how the tool works:
 Use this tool **at your own risk**. It is designed to safely remove bloatware and adjust appearance settings, but:
 - Always back up your system before making changes.
 - **Recommended for use on a freshly installed Windows 11 system** to ensure compatibility and avoid issues with existing configurations or third-party software.
+- On some **international Windows installations**, the tool may not remove the **pinned Microsoft Sudoku download link** from the Start Menu due to regional variations in app packaging.
+
 
 ---
 
