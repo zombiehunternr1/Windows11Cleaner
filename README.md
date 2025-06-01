@@ -6,7 +6,8 @@
 ![License](https://img.shields.io/github/license/zombiehunternr1/Windows11Debloater)
 
 **Windows 11 Cleaner** is a simple tool to debloat Windows 11, restore the **classic Windows 10 layout**, and **customize Taskbar and window border colors**.
-It also lets you **set a custom desktop wallpaper** and install your choice of **Firefox, Chrome, Brave, or LibreWolf** — all aimed at improving your system’s performance and appearance.
+
+It lets you install your browser of choice — **Firefox, Chrome, Brave, or LibreWolf** — and optionally set a **custom desktop wallpaper**, all aimed at improving your system’s performance and appearance.
 
 ---
 
