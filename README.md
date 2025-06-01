@@ -1,4 +1,4 @@
-# 🧹 Windows 11 Debloater & Customizer
+# 🧹 Windows 11 Cleaner — Your Windows, your way.
 
 ![GitHub release](https://img.shields.io/github/v/release/zombiehunternr1/Windows11Debloater)
 ![GitHub downloads](https://img.shields.io/github/downloads/zombiehunternr1/Windows11Debloater/total)
