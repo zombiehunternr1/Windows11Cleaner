@@ -26,7 +26,7 @@ It lets you install your **browser of choice** — Firefox, Chrome, Brave, or Li
 
 Check out this demo video to see how the tool works:
 
-[![Demo Video](https://img.youtube.com/vi/r3RpU7uluyk/0.jpg)](https://www.youtube.com/watch?v=r3RpU7uluyk)
+[![Demo Video](https://img.youtube.com/vi/iEEoCuHSWDc/0.jpg)](https://www.youtube.com/watch?v=iEEoCuHSWDc)
 
 *(Please note: The demo was performed in a VMware virtual machine, so performance and behavior may vary when running the tool on a physical system.)*
 
