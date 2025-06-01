@@ -43,8 +43,7 @@ Check out this demo video to see how the tool works:
 1. Right-click the `.PS1` file and select **Run with PowerShell**
 2. Or open a PowerShell window as Administrator and run:
    ```powershell
-   Set-ExecutionPolicy Bypass -Scope Process -Force
-   .\Windows11Cleaner.ps1
+   PowerShell -ExecutionPolicy Bypass -File ".\Windows11Cleaner.ps1"
    ```
 
 ---
